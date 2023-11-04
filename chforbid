@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+
+from tree_sitter import Language, Parser
+from pathlib import Path
+import argparse
+import sys
+
+d = Path(__file__).parent
+Language.build_library(
+        f'{d}/build/c.so',
+        [ f'{d}/vendor/tree-sitter-c' ]
+    )
+C_LANGUAGE = Language(f'{d}/build/c.so', 'c')
+
+parser = Parser()
+parser.set_language(C_LANGUAGE)
+
+args = argparse.ArgumentParser()
+args.add_argument("filename", nargs="+")
+args.add_argument("-a", "--allowed_functions")
+args = args.parse_args()
+
+allowed_functions = []
+if args.allowed_functions:
+    allowed_functions = args.allowed_functions.split(" ")
+
+query = C_LANGUAGE.query("""
+    (function_declarator declarator: (identifier) @fdef)
+    (call_expression function: (identifier) @fcall)
+    """)
+
+fdefs = []
+fcalls = []
+
+def get_line(source, start_byte):
+    line = 1
+    bytes_read = 0
+    try:
+        while True:
+            if chr(source[bytes_read]) == "\n":
+                line += 1
+            if bytes_read == start_byte:
+                return line
+            bytes_read += 1
+    except IndexError:
+        return line
+
+for f in args.filename:
+    source_file = open(f)
+    source = bytes(source_file.read(), "utf-8")
+    tree = parser.parse(source)
+    captures = query.captures(tree.root_node)
+
+    for capture in captures:
+        node = capture[0]
+        node_type = capture[1]
+        content = source[node.start_byte:node.end_byte].decode("utf-8")
+
+        if node_type == "fcall":
+            fcalls.append([content, f, get_line(source, node.start_byte)])
+        elif node_type == "fdef":
+            fdefs.append(content)
+
+for func, f, line_number in fcalls:
+    if func not in allowed_functions and not func.startswith("ft_") and func not in fdefs:
+        print(f"Found forbidden function \033[1;31m{func}\033[0m", end="")
+        if len(args.filename) > 1:
+            print(f" in \033[1m{f}:{line_number}\033[0m", end="")
+        print()
