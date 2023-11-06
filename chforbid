@@ -3,6 +3,7 @@
 from tree_sitter import Language, Parser
 from pathlib import Path
 import argparse
+import fnmatch
 import sys
 
 d = Path(__file__).parent
@@ -62,7 +63,8 @@ for f in args.filename:
             fdefs.append(content)
 
 for func, f, line_number in fcalls:
-    if func not in allowed_functions and not func.startswith("ft_") and func not in fdefs:
+    if not any([fnmatch.fnmatch(func, allowed_function) for allowed_function in allowed_functions]) \
+            and not func.startswith("ft_") and func not in fdefs:
         print(f"Found forbidden function \033[1;31m{func}\033[0m", end="")
         if len(args.filename) > 1:
             print(f" in \033[1m{f}:{line_number}\033[0m", end="")
