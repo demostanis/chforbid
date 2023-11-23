@@ -27,6 +27,7 @@ if args.allowed_functions:
 
 query = C_LANGUAGE.query("""
     (function_declarator declarator: (identifier) @fdef)
+    (function_declarator declarator: (parenthesized_declarator (pointer_declarator (identifier) @fdef)))
     (call_expression function: (identifier) @fcall)
     """)
 
